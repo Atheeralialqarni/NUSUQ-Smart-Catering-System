@@ -1,0 +1,2127 @@
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+
+import '../l10n/app_localizations.dart';
+import '../main.dart';
+import 'pilgrim_home_screen.dart';
+import '../services/health_service.dart';
+import '../session/user_session.dart';
+import '../models/health_profile.dart';
+import '../models/pilgrim_profile.dart';
+import '../services/pilgrim_service.dart';
+import 'login_page.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+class PilgrimProfilePage extends StatefulWidget {
+  static const String routeName = '/pilgrim-profile';
+
+  const PilgrimProfilePage({super.key});
+
+  static const Color bg = Color(0xFFF3F6F5);
+  static const Color primaryDark = Color(0xFF062C26);
+  static const Color primary = Color(0xFF0D4C4A);
+  static const Color primaryMid = Color(0xFF1A6B66);
+  static const Color mint = Color(0xFF9FE5C9);
+  static const Color softMint = Color(0xFFEAF4F2);
+  static const Color gold = Color(0xFFF0E0C0);
+
+  @override
+  State<PilgrimProfilePage> createState() => _PilgrimProfilePageState();
+}
+
+class _PilgrimProfilePageState extends State<PilgrimProfilePage> {
+  final HealthService _healthService = HealthService();
+  final PilgrimService _pilgrimService = PilgrimService();
+
+  bool _isPersonalLoading = true;
+  bool _isHealthLoading = true;
+
+  String pilgrimIdText = "";
+  String campaignName = "";
+
+  bool isEditingPersonal = false;
+  bool isEditingHealth = false;
+
+  String fullName = "";
+  String email = "";
+  String phone = "";
+
+  String selectedAge = "18";
+  String selectedHealthCondition = "None";
+  String selectedDietaryPreference = "Regular";
+  List<String> selectedAllergies = [];
+  String otherAllergyText = "";
+  List<String> tags = [];
+
+  String tempSelectedAge = "";
+  String tempSelectedHealthCondition = "";
+  String tempSelectedDietaryPreference = "";
+  List<String> tempSelectedAllergies = [];
+  String tempOtherAllergyText = "";
+
+  bool notificationsEnabled = true;
+
+  Future<void> _loadNotificationSetting() async {
+    final prefs = await SharedPreferences.getInstance();
+
+    if (!mounted) return;
+
+    setState(() {
+      notificationsEnabled =
+          prefs.getBool('pilgrim_notifications_enabled') ?? true;
+    });
+  }
+
+  Future<void> _saveNotificationSetting(bool value) async {
+    final prefs = await SharedPreferences.getInstance();
+
+    await prefs.setBool('pilgrim_notifications_enabled', value);
+
+    if (!mounted) return;
+
+    setState(() {
+      notificationsEnabled = value;
+    });
+  }
+
+  late final TextEditingController fullNameController;
+  late final TextEditingController emailController;
+  late final TextEditingController phoneController;
+  late final TextEditingController otherAllergyController;
+  final GlobalKey<FormState> _personalFormKey = GlobalKey<FormState>();
+
+  final List<String> ageOptions = List.generate(83, (index) => "${18 + index}");
+
+  final List<String> healthConditionOptions = const [
+    "None",
+    "Diabetes",
+    "Hypertension",
+    "Heart Disease",
+    "Asthma",
+    "Kidney Disease",
+    "Liver Disease",
+    "Thyroid Disorder",
+    "High Cholesterol",
+    "Arthritis",
+    "Epilepsy",
+    "Mobility Issue",
+  ];
+
+  final List<String> dietaryPreferenceOptions = const [
+    "Regular",
+    "Low Sugar",
+    "Low Salt",
+    "Vegetarian",
+    "High Protein",
+  ];
+
+  final List<String> allergyOptions = const [
+    "Peanuts",
+    "Nuts",
+    "Milk",
+    "Eggs",
+    "Fish",
+    "Shellfish",
+    "Wheat",
+    "Soy",
+    "Sesame",
+    "Other",
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+
+    fullNameController = TextEditingController(text: fullName);
+    emailController = TextEditingController(text: email);
+    phoneController = TextEditingController(text: phone);
+    otherAllergyController = TextEditingController(text: otherAllergyText);
+
+    _rebuildHealthTags();
+    _loadPersonalProfile();
+    _loadHealthProfile();
+    _loadNotificationSetting();
+  }
+
+  @override
+  void dispose() {
+    fullNameController.dispose();
+    emailController.dispose();
+    phoneController.dispose();
+    otherAllergyController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadHealthProfile() async {
+    final pilgrimId = UserSession.userId;
+
+    if (pilgrimId == null || pilgrimId.isEmpty) {
+      setState(() => _isHealthLoading = false);
+      return;
+    }
+
+    try {
+      final profile = await _healthService.getProfile(pilgrimId);
+
+      setState(() {
+        selectedAge = profile.age > 0 ? profile.age.toString() : "18";
+
+        selectedHealthCondition = profile.healthConditions.isNotEmpty
+            ? profile.healthConditions
+            : "None";
+
+        selectedDietaryPreference = profile.dietaryPreferences.isNotEmpty
+            ? profile.dietaryPreferences
+            : "Regular";
+
+        final loadedAllergies = _splitKnownAndOtherAllergies(
+          profile.allergyList,
+        );
+        selectedAllergies = loadedAllergies.knownAllergies;
+        otherAllergyText = loadedAllergies.otherAllergyText;
+        otherAllergyController.text = otherAllergyText;
+
+        _rebuildHealthTags();
+        _isHealthLoading = false;
+      });
+    } catch (e) {
+      setState(() {
+        selectedAge = "18";
+        selectedHealthCondition = "None";
+        selectedDietaryPreference = "Regular";
+        selectedAllergies = [];
+        otherAllergyText = "";
+        otherAllergyController.clear();
+        _rebuildHealthTags();
+        _isHealthLoading = false;
+      });
+    }
+  }
+
+  Future<void> _loadPersonalProfile() async {
+    final pilgrimId = UserSession.userId;
+
+    if (pilgrimId == null || pilgrimId.isEmpty) {
+      setState(() => _isPersonalLoading = false);
+      return;
+    }
+
+    try {
+      final profile = await _pilgrimService.getProfile(pilgrimId);
+
+      setState(() {
+        fullName = profile.fullName;
+        email = profile.email;
+        phone = profile.phoneNumber;
+        pilgrimIdText = profile.pilgrimID;
+        campaignName = profile.campaignName;
+
+        fullNameController.text = fullName;
+        emailController.text = email;
+        phoneController.text = phone;
+
+        _isPersonalLoading = false;
+      });
+    } catch (e) {
+      setState(() => _isPersonalLoading = false);
+    }
+  }
+
+  ({List<String> knownAllergies, String otherAllergyText})
+  _splitKnownAndOtherAllergies(List<String> allergies) {
+    final known = <String>[];
+    final custom = <String>[];
+
+    for (final allergy in allergies) {
+      final value = allergy.trim();
+      if (value.isEmpty) continue;
+
+      if (allergyOptions.contains(value) && value != "Other") {
+        known.add(value);
+      } else if (value != "Other") {
+        custom.add(value);
+      }
+    }
+
+    if (custom.isNotEmpty && !known.contains("Other")) {
+      known.add("Other");
+    }
+
+    return (knownAllergies: known, otherAllergyText: custom.join(", "));
+  }
+
+  List<String> _finalAllergiesForSaving() {
+    final allergies = selectedAllergies
+        .where((item) => item != "Other")
+        .map((item) => item.trim())
+        .where((item) => item.isNotEmpty)
+        .toList();
+
+    final customAllergy = otherAllergyController.text.trim();
+    if (selectedAllergies.contains("Other") && customAllergy.isNotEmpty) {
+      allergies.add(customAllergy);
+    }
+
+    return allergies;
+  }
+
+  void _rebuildHealthTags() {
+    final List<String> result = [];
+
+    if (selectedHealthCondition == "Diabetes") {
+      result.add("Diabetic");
+    } else if (selectedHealthCondition != "None") {
+      result.add(selectedHealthCondition);
+    }
+
+    if (selectedDietaryPreference.isNotEmpty &&
+        selectedDietaryPreference != "Regular") {
+      result.add(selectedDietaryPreference);
+    }
+
+    for (final allergy in selectedAllergies) {
+      result.add("$allergy Allergy");
+    }
+
+    tags = result;
+  }
+
+  String? _validateProfileFullName(String? value) {
+    final l10n = AppLocalizations.of(context)!;
+    final text = (value ?? '').trim().replaceAll(RegExp(r'\s+'), ' ');
+
+    if (text.isEmpty) return l10n.pleaseEnterFullName;
+    if (text.length < 3) return l10n.fullNameTooShort;
+    if (text.length > 50) return l10n.fullNameTooLong;
+    if (RegExp(r'[0-9]').hasMatch(text)) return l10n.fullNameNoNumbers;
+
+    final isArabicOnly = RegExp(r'^[\u0600-\u06FF ]+$').hasMatch(text);
+    final isEnglishOnly = RegExp(r'^[A-Za-z ]+$').hasMatch(text);
+
+    if (!isArabicOnly && !isEnglishOnly) {
+      return l10n.fullNameArabicOrEnglishOnly;
+    }
+
+    return null;
+  }
+
+  String? _validateProfileEmail(String? value) {
+    final l10n = AppLocalizations.of(context)!;
+    final text = (value ?? '').trim();
+
+    if (text.isEmpty) return l10n.pleaseEnterEmail;
+    if (text.contains(' ')) return l10n.emailNoSpaces;
+    if (text.length > 100) return l10n.emailTooLong;
+
+    final emailRegex = RegExp(
+      r'^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$',
+    );
+
+    if (!emailRegex.hasMatch(text)) {
+      return l10n.pleaseEnterValidEmail;
+    }
+
+    return null;
+  }
+
+  String? _validateProfilePhone(String? value) {
+    final l10n = AppLocalizations.of(context)!;
+    final text = (value ?? '').trim();
+
+    if (text.isEmpty) return l10n.pleaseEnterPhoneNumber;
+    if (text.contains(' ')) return l10n.phoneNoSpaces;
+
+    if (!RegExp(r'^\+?[0-9]+$').hasMatch(text)) {
+      return l10n.phoneDigitsOnly;
+    }
+
+    final digitsOnly = text.replaceAll('+', '');
+
+    if (digitsOnly.length < 8) {
+      return l10n.phoneTooShort;
+    }
+
+    if (digitsOnly.length > 15) {
+      return l10n.phoneTooLong;
+    }
+
+    return null;
+  }
+
+  Future<void> _togglePersonalEdit() async {
+    final l10n = AppLocalizations.of(context)!;
+
+    if (isEditingPersonal) {
+      final pilgrimId = UserSession.userId;
+
+      if (pilgrimId == null || pilgrimId.isEmpty) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(l10n.userSessionNotFound)));
+        return;
+      }
+
+      if (!(_personalFormKey.currentState?.validate() ?? false)) {
+        return;
+      }
+
+      try {
+        final profile = PilgrimProfile(
+          pilgrimID: pilgrimId,
+          fullName: fullNameController.text.trim(),
+          email: emailController.text.trim(),
+          phoneNumber: phoneController.text.trim(),
+          campaignID: 0,
+          campaignName: campaignName,
+        );
+
+        await _pilgrimService.updateProfile(profile);
+
+        setState(() {
+          fullName = fullNameController.text.trim();
+          email = emailController.text.trim();
+          phone = phoneController.text.trim();
+          isEditingPersonal = false;
+        });
+
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(l10n.personalDetailsUpdated)));
+      } catch (e) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("${l10n.failedToUpdateProfile}: $e")),
+        );
+      }
+    } else {
+      fullNameController.text = fullName;
+      emailController.text = email;
+      phoneController.text = phone;
+
+      setState(() {
+        isEditingPersonal = true;
+      });
+    }
+  }
+
+  void _cancelPersonalEdit() {
+    setState(() {
+      fullNameController.text = fullName;
+      emailController.text = email;
+      phoneController.text = phone;
+      isEditingPersonal = false;
+    });
+  }
+
+  Future<void> _toggleHealthEdit() async {
+    final l10n = AppLocalizations.of(context)!;
+
+    if (isEditingHealth) {
+      final pilgrimId = UserSession.userId;
+
+      if (pilgrimId == null || pilgrimId.isEmpty) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(l10n.userSessionNotFound)));
+        return;
+      }
+
+      try {
+        final profile = HealthProfile(
+          pilgrimID: pilgrimId,
+          age: int.tryParse(selectedAge) ?? 0,
+          healthConditions: selectedHealthCondition,
+          dietaryPreferences: selectedDietaryPreference,
+          allergies: _finalAllergiesForSaving().join(", "),
+        );
+
+        await _healthService.saveProfile(profile);
+
+        setState(() {
+          selectedAllergies = List<String>.from(_finalAllergiesForSaving());
+          otherAllergyText = "";
+          otherAllergyController.clear();
+          _rebuildHealthTags();
+          isEditingHealth = false;
+        });
+
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(l10n.healthInformationUpdated)));
+      } catch (e) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("${l10n.failedToSaveHealthProfile}: $e")),
+        );
+      }
+    } else {
+      tempSelectedAge = selectedAge;
+      tempSelectedHealthCondition = selectedHealthCondition;
+      tempSelectedDietaryPreference = selectedDietaryPreference;
+      tempSelectedAllergies = List<String>.from(selectedAllergies);
+      tempOtherAllergyText = otherAllergyText;
+
+      final editableAllergies = _splitKnownAndOtherAllergies(selectedAllergies);
+
+      setState(() {
+        selectedAllergies = editableAllergies.knownAllergies;
+        otherAllergyText = editableAllergies.otherAllergyText;
+        otherAllergyController.text = otherAllergyText;
+        isEditingHealth = true;
+      });
+    }
+  }
+
+  void _cancelHealthEdit() {
+    setState(() {
+      selectedAge = tempSelectedAge;
+      selectedHealthCondition = tempSelectedHealthCondition;
+      selectedDietaryPreference = tempSelectedDietaryPreference;
+      selectedAllergies = List<String>.from(tempSelectedAllergies);
+      otherAllergyText = tempOtherAllergyText;
+      otherAllergyController.text = otherAllergyText;
+      _rebuildHealthTags();
+      isEditingHealth = false;
+    });
+  }
+
+  Future<void> _changeLanguage() async {
+    final currentLocale = Localizations.localeOf(context).languageCode;
+
+    final selected = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
+      ),
+      builder: (context) {
+        final l10n = AppLocalizations.of(context)!;
+
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 10),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(18, 8, 18, 10),
+                  child: Align(
+                    alignment: AlignmentDirectional.centerStart,
+                    child: Text(
+                      l10n.chooseLanguage,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                  ),
+                ),
+                ListTile(
+                  title: Text(l10n.arabic),
+                  trailing: currentLocale == "ar"
+                      ? const Icon(
+                          Icons.check,
+                          color: PilgrimProfilePage.primary,
+                        )
+                      : null,
+                  onTap: () => Navigator.pop(context, "ar"),
+                ),
+                ListTile(
+                  title: Text(l10n.english),
+                  trailing: currentLocale == "en"
+                      ? const Icon(
+                          Icons.check,
+                          color: PilgrimProfilePage.primary,
+                        )
+                      : null,
+                  onTap: () => Navigator.pop(context, "en"),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+
+    if (selected != null) {
+      NusuqApp.of(context).setLocale(Locale(selected));
+    }
+  }
+
+  Future<void> _logout() async {
+    final l10n = AppLocalizations.of(context)!;
+
+    final shouldLogout = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+        title: Text(
+          l10n.logOut,
+          style: const TextStyle(
+            fontWeight: FontWeight.w900,
+            color: Colors.black87,
+          ),
+        ),
+        content: Text(
+          l10n.areYouSureLogout,
+          style: const TextStyle(
+            color: Colors.black87,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text(
+              l10n.cancel,
+              style: const TextStyle(
+                color: PilgrimProfilePage.primary,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: Text(
+              l10n.logOut,
+              style: const TextStyle(
+                color: Colors.redAccent,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (shouldLogout == true) {
+      UserSession.clear();
+
+      if (!mounted) return;
+
+      Navigator.pushNamedAndRemoveUntil(
+        context,
+        LoginScreen.routeName,
+        (route) => false,
+      );
+    }
+  }
+
+  String _currentLanguageName(AppLocalizations l10n) {
+    final code = Localizations.localeOf(context).languageCode;
+    return code == "ar" ? l10n.arabic : l10n.english;
+  }
+
+  String _localizedHealthCondition(AppLocalizations l10n, String value) {
+    switch (value) {
+      case "None":
+        return l10n.none;
+      case "Diabetes":
+        return l10n.diabetes;
+      case "Hypertension":
+        return l10n.hypertension;
+      case "Heart Disease":
+        return l10n.heartDisease;
+      case "Asthma":
+        return l10n.asthma;
+      case "Kidney Disease":
+        return l10n.kidneyDisease;
+      case "Liver Disease":
+        return l10n.liverDisease;
+      case "Thyroid Disorder":
+        return l10n.thyroidDisorder;
+      case "High Cholesterol":
+        return l10n.highCholesterol;
+      case "Arthritis":
+        return l10n.arthritis;
+      case "Epilepsy":
+        return l10n.epilepsy;
+      case "Mobility Issue":
+        return l10n.mobilityIssue;
+      default:
+        return value;
+    }
+  }
+
+  String _localizedDietaryPreference(AppLocalizations l10n, String value) {
+    switch (value) {
+      case "Regular":
+        return l10n.regular;
+      case "Low Sugar":
+        return l10n.lowSugar;
+      case "Low Salt":
+        return l10n.lowSalt;
+      case "Vegetarian":
+        return l10n.vegetarian;
+      case "High Protein":
+        return l10n.highProtein;
+      default:
+        return value;
+    }
+  }
+
+  String _localizedAllergy(AppLocalizations l10n, String value) {
+    switch (value) {
+      case "Peanuts":
+        return l10n.peanuts;
+        ;
+      case "Nuts":
+        return l10n.nuts;
+        ;
+      case "Milk":
+        return l10n.milk;
+        ;
+      case "Eggs":
+        return l10n.eggs;
+      case "Gluten":
+        return l10n.gluten;
+      case "Soy":
+        return l10n.soy;
+      case "Sesame":
+        return l10n.sesame;
+      case "Fish":
+        return l10n.fish;
+        ;
+      case "Shellfish":
+        return l10n.shellfish;
+      case "Wheat":
+        return l10n.wheat;
+      case "Other":
+        return l10n.other;
+      default:
+        return value;
+    }
+  }
+
+  List<String> _localizedTags(AppLocalizations l10n) {
+    final result = <String>[];
+
+    if (selectedHealthCondition == "Diabetes") {
+      result.add(l10n.diabetic);
+    } else if (selectedHealthCondition != "None") {
+      result.add(_localizedHealthCondition(l10n, selectedHealthCondition));
+    }
+
+    if (selectedDietaryPreference.isNotEmpty &&
+        selectedDietaryPreference != "Regular") {
+      result.add(_localizedDietaryPreference(l10n, selectedDietaryPreference));
+    }
+
+    for (final allergy in selectedAllergies) {
+      result.add(l10n.allergyTag(_localizedAllergy(l10n, allergy)));
+    }
+
+    return result;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+
+    final displayCampaignName = campaignName.isEmpty
+        ? l10n.noCampaign
+        : campaignName;
+
+    return Scaffold(
+      backgroundColor: PilgrimProfilePage.bg,
+      appBar: const _PilgrimProfileAppBar(),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(16, 14, 16, 24),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _ProfileHeaderCard(
+              fullName: fullName,
+              pilgrimId: pilgrimIdText,
+              campaignName: displayCampaignName,
+            ),
+            const SizedBox(height: 16),
+
+            _SectionTitle(title: l10n.personalInformation),
+            const SizedBox(height: 10),
+            if (_isPersonalLoading)
+              const Center(child: CircularProgressIndicator())
+            else
+              _PersonalInfoCard(
+                formKey: _personalFormKey,
+                isEditing: isEditingPersonal,
+                fullName: fullName,
+                email: email,
+                phone: phone,
+                fullNameController: fullNameController,
+                emailController: emailController,
+                phoneController: phoneController,
+                fullNameValidator: _validateProfileFullName,
+                emailValidator: _validateProfileEmail,
+                phoneValidator: _validateProfilePhone,
+                onEditTap: _togglePersonalEdit,
+                onCancelTap: _cancelPersonalEdit,
+              ),
+            const SizedBox(height: 16),
+
+            _SectionTitle(title: l10n.healthProfile),
+            const SizedBox(height: 10),
+            if (_isHealthLoading)
+              const Center(child: CircularProgressIndicator())
+            else
+              _HealthProfileCard(
+                isEditing: isEditingHealth,
+                selectedAge: selectedAge,
+                selectedHealthCondition: selectedHealthCondition,
+                selectedDietaryPreference: selectedDietaryPreference,
+                selectedAllergies: selectedAllergies,
+                otherAllergyController: otherAllergyController,
+                localizedTags: _localizedTags(l10n),
+                ageOptions: ageOptions,
+                healthConditionOptions: healthConditionOptions,
+                dietaryPreferenceOptions: dietaryPreferenceOptions,
+                allergyOptions: allergyOptions,
+                localizedHealthCondition: _localizedHealthCondition,
+                localizedDietaryPreference: _localizedDietaryPreference,
+                localizedAllergy: _localizedAllergy,
+                onAgeChanged: (value) {
+                  setState(() {
+                    selectedAge = value!;
+                  });
+                },
+                onHealthConditionChanged: (value) {
+                  setState(() {
+                    selectedHealthCondition = value!;
+                  });
+                },
+                onDietaryPreferenceChanged: (value) {
+                  setState(() {
+                    selectedDietaryPreference = value!;
+                  });
+                },
+                onAllergyToggle: (allergy, selected) {
+                  setState(() {
+                    if (selected) {
+                      if (!selectedAllergies.contains(allergy)) {
+                        selectedAllergies.add(allergy);
+                      }
+                    } else {
+                      selectedAllergies.remove(allergy);
+                      if (allergy == "Other") {
+                        otherAllergyText = "";
+                        otherAllergyController.clear();
+                      }
+                    }
+                  });
+                },
+                onOtherAllergyChanged: (value) {
+                  setState(() {
+                    otherAllergyText = value;
+                  });
+                },
+                onEditTap: _toggleHealthEdit,
+                onCancelTap: _cancelHealthEdit,
+              ),
+            const SizedBox(height: 16),
+
+            _SectionTitle(title: l10n.settings),
+            const SizedBox(height: 10),
+            _SettingsCard(
+              notificationsEnabled: notificationsEnabled,
+              language: _currentLanguageName(l10n),
+              onNotificationsChanged: (value) async {
+                await _saveNotificationSetting(value);
+              },
+              onLanguageTap: _changeLanguage,
+            ),
+            const SizedBox(height: 22),
+
+            _LogoutButton(onTap: _logout),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _PilgrimProfileAppBar extends StatelessWidget
+    implements PreferredSizeWidget {
+  const _PilgrimProfileAppBar();
+
+  @override
+  Size get preferredSize => const Size.fromHeight(58);
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+
+    return Directionality(
+      textDirection: TextDirection.ltr,
+      child: AppBar(
+        backgroundColor: Colors.white,
+        elevation: 0.6,
+        shadowColor: Colors.black.withOpacity(0.08),
+        surfaceTintColor: Colors.white,
+        automaticallyImplyLeading: false,
+        titleSpacing: 8,
+        title: Row(
+          children: [
+            IconButton(
+              onPressed: () {
+                Navigator.pushReplacement(
+                  context,
+                  MaterialPageRoute(builder: (_) => const PilgrimHomeScreen()),
+                );
+              },
+              icon: const Icon(
+                Icons.arrow_back_ios_new_rounded,
+                color: Colors.black87,
+                size: 20,
+              ),
+            ),
+            const SizedBox(width: 2),
+            Text(
+              l10n.pilgrimProfile,
+              style: const TextStyle(
+                color: Colors.black87,
+                fontSize: 17,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SectionTitle extends StatelessWidget {
+  final String title;
+
+  const _SectionTitle({required this.title});
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      title,
+      style: const TextStyle(fontSize: 14.5, fontWeight: FontWeight.w900),
+    );
+  }
+}
+
+class _ProfileHeaderCard extends StatelessWidget {
+  final String fullName;
+  final String pilgrimId;
+  final String campaignName;
+
+  const _ProfileHeaderCard({
+    required this.fullName,
+    required this.pilgrimId,
+    required this.campaignName,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(24),
+      child: Stack(
+        children: [
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.fromLTRB(18, 20, 18, 20),
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  PilgrimProfilePage.primaryDark,
+                  PilgrimProfilePage.primary,
+                  PilgrimProfilePage.primaryMid,
+                ],
+              ),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 74,
+                  height: 74,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: Colors.white.withOpacity(0.14),
+                    border: Border.all(color: Colors.white.withOpacity(0.25)),
+                  ),
+                  child: const Icon(
+                    Icons.person_rounded,
+                    color: Colors.white,
+                    size: 38,
+                  ),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        fullName,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 19,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        "${l10n.pilgrimId}: ${pilgrimId.isEmpty ? l10n.notAvailable : pilgrimId}",
+                        style: TextStyle(
+                          color: Colors.white.withOpacity(0.82),
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        "${l10n.campaign}: ${campaignName.isEmpty ? l10n.notAvailable : campaignName}",
+                        style: TextStyle(
+                          color: Colors.white.withOpacity(0.82),
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 7,
+                        ),
+                        decoration: BoxDecoration(
+                          color: PilgrimProfilePage.mint.withOpacity(0.95),
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                        child: Text(
+                          l10n.activeAccount,
+                          style: const TextStyle(
+                            color: PilgrimProfilePage.primaryDark,
+                            fontWeight: FontWeight.w900,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Positioned(
+            right: -28,
+            top: -36,
+            child: Container(
+              width: 118,
+              height: 118,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: PilgrimProfilePage.mint.withOpacity(0.10),
+              ),
+            ),
+          ),
+          Positioned(
+            left: -28,
+            bottom: -36,
+            child: Container(
+              width: 126,
+              height: 126,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: PilgrimProfilePage.gold.withOpacity(0.08),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PersonalInfoCard extends StatelessWidget {
+  final bool isEditing;
+  final String fullName;
+  final String email;
+  final String phone;
+  final TextEditingController fullNameController;
+  final TextEditingController emailController;
+  final TextEditingController phoneController;
+  final VoidCallback onEditTap;
+  final VoidCallback onCancelTap;
+  final GlobalKey<FormState> formKey;
+  final String? Function(String?) fullNameValidator;
+  final String? Function(String?) emailValidator;
+  final String? Function(String?) phoneValidator;
+
+  const _PersonalInfoCard({
+    required this.isEditing,
+    required this.fullName,
+    required this.email,
+    required this.phone,
+    required this.fullNameController,
+    required this.emailController,
+    required this.phoneController,
+    required this.onEditTap,
+    required this.onCancelTap,
+    required this.formKey,
+    required this.fullNameValidator,
+    required this.emailValidator,
+    required this.phoneValidator,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+
+    return _WhiteCard(
+      child: Column(
+        children: [
+          _CardHeader(
+            title: l10n.personalDetails,
+            actionText: isEditing ? l10n.save : l10n.edit,
+            onActionTap: onEditTap,
+            showCancel: isEditing,
+            onCancelTap: onCancelTap,
+          ),
+          const SizedBox(height: 10),
+          if (isEditing) ...[
+            Form(
+              key: formKey,
+              autovalidateMode: AutovalidateMode.onUserInteraction,
+              child: Column(
+                children: [
+                  _EditableField(
+                    icon: Icons.person_outline_rounded,
+                    label: l10n.fullName,
+                    controller: fullNameController,
+                    keyboardType: TextInputType.name,
+                    validator: fullNameValidator,
+                  ),
+                  const SizedBox(height: 14),
+                  _EditableField(
+                    icon: Icons.email_outlined,
+                    label: l10n.email,
+                    controller: emailController,
+                    keyboardType: TextInputType.emailAddress,
+                    validator: emailValidator,
+                  ),
+                  const SizedBox(height: 14),
+                  _EditableField(
+                    icon: Icons.phone_outlined,
+                    label: l10n.phoneNumber,
+                    controller: phoneController,
+                    keyboardType: TextInputType.phone,
+                    validator: phoneValidator,
+                  ),
+                ],
+              ),
+            ),
+          ] else ...[
+            _InfoRow(
+              icon: Icons.person_outline_rounded,
+              title: l10n.fullName,
+              value: fullName,
+            ),
+            const Divider(height: 22),
+            _InfoRow(
+              icon: Icons.email_outlined,
+              title: l10n.email,
+              value: email,
+            ),
+            const Divider(height: 22),
+            _InfoRow(
+              icon: Icons.phone_outlined,
+              title: l10n.phoneNumber,
+              value: phone,
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _HealthProfileCard extends StatelessWidget {
+  final bool isEditing;
+  final String selectedAge;
+  final String selectedHealthCondition;
+  final String selectedDietaryPreference;
+  final List<String> selectedAllergies;
+  final TextEditingController otherAllergyController;
+  final List<String> localizedTags;
+
+  final List<String> ageOptions;
+  final List<String> healthConditionOptions;
+  final List<String> dietaryPreferenceOptions;
+  final List<String> allergyOptions;
+
+  final String Function(AppLocalizations l10n, String value)
+  localizedHealthCondition;
+  final String Function(AppLocalizations l10n, String value)
+  localizedDietaryPreference;
+  final String Function(AppLocalizations l10n, String value) localizedAllergy;
+
+  final ValueChanged<String?> onAgeChanged;
+  final ValueChanged<String?> onHealthConditionChanged;
+  final ValueChanged<String?> onDietaryPreferenceChanged;
+  final void Function(String allergy, bool selected) onAllergyToggle;
+  final ValueChanged<String> onOtherAllergyChanged;
+
+  final VoidCallback onEditTap;
+  final VoidCallback onCancelTap;
+
+  const _HealthProfileCard({
+    required this.isEditing,
+    required this.selectedAge,
+    required this.selectedHealthCondition,
+    required this.selectedDietaryPreference,
+    required this.selectedAllergies,
+    required this.otherAllergyController,
+    required this.localizedTags,
+    required this.ageOptions,
+    required this.healthConditionOptions,
+    required this.dietaryPreferenceOptions,
+    required this.allergyOptions,
+    required this.localizedHealthCondition,
+    required this.localizedDietaryPreference,
+    required this.localizedAllergy,
+    required this.onAgeChanged,
+    required this.onHealthConditionChanged,
+    required this.onDietaryPreferenceChanged,
+    required this.onAllergyToggle,
+    required this.onOtherAllergyChanged,
+    required this.onEditTap,
+    required this.onCancelTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+
+    return _WhiteCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _CardHeader(
+            title: l10n.healthInformation,
+            actionText: isEditing ? l10n.save : l10n.edit,
+            onActionTap: onEditTap,
+            showCancel: isEditing,
+            onCancelTap: onCancelTap,
+          ),
+          const SizedBox(height: 10),
+          if (isEditing) ...[
+            _InlineAgeSelector(
+              age: selectedAge,
+              onAgeChanged: (value) {
+                onAgeChanged(value);
+              },
+            ),
+            const SizedBox(height: 14),
+            _DropdownField(
+              icon: Icons.monitor_heart_outlined,
+              label: l10n.healthCondition,
+              value: selectedHealthCondition,
+              items: healthConditionOptions,
+              localizedValue: (item) => localizedHealthCondition(l10n, item),
+              onChanged: onHealthConditionChanged,
+            ),
+            const SizedBox(height: 14),
+            _DropdownField(
+              icon: Icons.restaurant_menu_rounded,
+              label: l10n.dietaryPreference,
+              value: selectedDietaryPreference,
+              items: dietaryPreferenceOptions,
+              localizedValue: (item) => localizedDietaryPreference(l10n, item),
+              onChanged: onDietaryPreferenceChanged,
+            ),
+            const SizedBox(height: 14),
+            _MultiSelectAllergyField(
+              icon: Icons.warning_amber_rounded,
+              label: l10n.allergies,
+              items: allergyOptions,
+              selectedItems: selectedAllergies,
+              otherController: otherAllergyController,
+              localizedValue: (item) => localizedAllergy(l10n, item),
+              onToggle: onAllergyToggle,
+              onOtherChanged: onOtherAllergyChanged,
+            ),
+          ] else ...[
+            _InfoRow(
+              icon: Icons.cake_outlined,
+              title: l10n.age,
+              value: selectedAge,
+            ),
+            const Divider(height: 22),
+            _InfoRow(
+              icon: Icons.monitor_heart_outlined,
+              title: l10n.healthCondition,
+              value: localizedHealthCondition(l10n, selectedHealthCondition),
+            ),
+            const Divider(height: 22),
+            _InfoRow(
+              icon: Icons.restaurant_menu_rounded,
+              title: l10n.dietaryPreference,
+              value: localizedDietaryPreference(
+                l10n,
+                selectedDietaryPreference,
+              ),
+            ),
+            const Divider(height: 22),
+            _InfoRow(
+              icon: Icons.warning_amber_rounded,
+              title: l10n.allergies,
+              value: selectedAllergies.isEmpty
+                  ? l10n.none
+                  : selectedAllergies
+                        .map((item) => localizedAllergy(l10n, item))
+                        .join(", "),
+            ),
+            const SizedBox(height: 14),
+            _TagsWrap(tags: localizedTags),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _SettingsCard extends StatelessWidget {
+  final bool notificationsEnabled;
+  final String language;
+  final ValueChanged<bool> onNotificationsChanged;
+  final VoidCallback onLanguageTap;
+
+  const _SettingsCard({
+    required this.notificationsEnabled,
+    required this.language,
+    required this.onNotificationsChanged,
+    required this.onLanguageTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+
+    return _WhiteCard(
+      child: Column(
+        children: [
+          _CardHeader(title: l10n.preferences),
+          const SizedBox(height: 10),
+          _SwitchSettingRow(
+            icon: Icons.notifications_none_rounded,
+            title: l10n.notifications,
+            value: notificationsEnabled,
+            onChanged: onNotificationsChanged,
+          ),
+          const Divider(height: 22),
+          _SettingRow(
+            icon: Icons.language_rounded,
+            title: l10n.language,
+            value: language,
+            onTap: onLanguageTap,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _LogoutButton extends StatelessWidget {
+  final VoidCallback onTap;
+
+  const _LogoutButton({required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+
+    return SizedBox(
+      width: double.infinity,
+      child: OutlinedButton.icon(
+        onPressed: onTap,
+        style: OutlinedButton.styleFrom(
+          padding: const EdgeInsets.symmetric(vertical: 15),
+          side: BorderSide(color: Colors.red.withOpacity(0.22)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(18),
+          ),
+          backgroundColor: Colors.white,
+        ),
+        icon: const Icon(Icons.logout_rounded, color: Colors.redAccent),
+        label: Text(
+          l10n.logOut,
+          style: const TextStyle(
+            color: Colors.redAccent,
+            fontSize: 14.5,
+            fontWeight: FontWeight.w900,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _CardHeader extends StatelessWidget {
+  final String title;
+  final String? actionText;
+  final VoidCallback? onActionTap;
+  final bool showCancel;
+  final VoidCallback? onCancelTap;
+
+  const _CardHeader({
+    required this.title,
+    this.actionText,
+    this.onActionTap,
+    this.showCancel = false,
+    this.onCancelTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+
+    return Row(
+      children: [
+        Text(
+          title,
+          style: const TextStyle(fontSize: 14.5, fontWeight: FontWeight.w900),
+        ),
+        const Spacer(),
+        if (showCancel)
+          TextButton(
+            onPressed: onCancelTap,
+            child: Text(
+              l10n.cancel,
+              style: const TextStyle(
+                color: Colors.grey,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        if (actionText != null)
+          InkWell(
+            borderRadius: BorderRadius.circular(999),
+            onTap: onActionTap,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: PilgrimProfilePage.softMint,
+                borderRadius: BorderRadius.circular(999),
+              ),
+              child: Text(
+                actionText!,
+                style: const TextStyle(
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w800,
+                  color: PilgrimProfilePage.primary,
+                ),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+class _EditableField extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final TextEditingController controller;
+  final TextInputType? keyboardType;
+  final bool obscureText;
+  final List<TextInputFormatter>? inputFormatters;
+  final String? Function(String?)? validator;
+
+  const _EditableField({
+    required this.icon,
+    required this.label,
+    required this.controller,
+    this.keyboardType,
+    this.obscureText = false,
+    this.inputFormatters,
+    this.validator,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          width: 42,
+          height: 42,
+          decoration: BoxDecoration(
+            color: PilgrimProfilePage.softMint,
+            borderRadius: BorderRadius.circular(14),
+          ),
+          child: Icon(icon, color: PilgrimProfilePage.primary, size: 21),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: TextFormField(
+            controller: controller,
+            keyboardType: keyboardType,
+            obscureText: obscureText,
+            inputFormatters: inputFormatters,
+            validator: validator,
+            decoration: InputDecoration(
+              labelText: label,
+              isDense: true,
+              filled: true,
+              fillColor: const Color(0xFFF8FAFA),
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 12,
+                vertical: 14,
+              ),
+              errorMaxLines: 2,
+              errorStyle: const TextStyle(
+                color: Colors.redAccent,
+                fontWeight: FontWeight.w700,
+                fontSize: 11.8,
+              ),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: BorderSide(color: Colors.black.withOpacity(0.08)),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: BorderSide(color: Colors.black.withOpacity(0.08)),
+              ),
+              focusedBorder: const OutlineInputBorder(
+                borderRadius: BorderRadius.all(Radius.circular(14)),
+                borderSide: BorderSide(
+                  color: PilgrimProfilePage.primary,
+                  width: 1.2,
+                ),
+              ),
+              errorBorder: const OutlineInputBorder(
+                borderRadius: BorderRadius.all(Radius.circular(14)),
+                borderSide: BorderSide(color: Colors.redAccent, width: 1.3),
+              ),
+              focusedErrorBorder: const OutlineInputBorder(
+                borderRadius: BorderRadius.all(Radius.circular(14)),
+                borderSide: BorderSide(color: Colors.redAccent, width: 1.5),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _InlineAgeSelector extends StatelessWidget {
+  final String age;
+  final ValueChanged<String> onAgeChanged;
+  final int minAge;
+  final int maxAge;
+
+  const _InlineAgeSelector({
+    required this.age,
+    required this.onAgeChanged,
+    this.minAge = 18,
+    this.maxAge = 150,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    final currentAge = int.tryParse(age) ?? 18;
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        Container(
+          width: 42,
+          height: 42,
+          decoration: BoxDecoration(
+            color: PilgrimProfilePage.softMint,
+            borderRadius: BorderRadius.circular(14),
+          ),
+          child: const Icon(
+            Icons.cake_outlined,
+            color: PilgrimProfilePage.primary,
+            size: 21,
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF8FAFA),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: Colors.black.withOpacity(0.08)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  l10n.age,
+                  style: TextStyle(
+                    fontSize: 12.5,
+                    color: Colors.black.withOpacity(0.6),
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Container(
+                      width: 36,
+                      height: 36,
+                      decoration: BoxDecoration(
+                        color: currentAge > minAge
+                            ? PilgrimProfilePage.primary
+                            : Colors.black.withOpacity(0.12),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Material(
+                        color: Colors.transparent,
+                        child: InkWell(
+                          onTap: currentAge > minAge
+                              ? () {
+                                  onAgeChanged("${currentAge - 1}");
+                                }
+                              : null,
+                          borderRadius: BorderRadius.circular(10),
+                          child: Icon(
+                            Icons.remove_rounded,
+                            color: currentAge > minAge
+                                ? Colors.white
+                                : Colors.black.withOpacity(0.4),
+                            size: 20,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(vertical: 8),
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(
+                          color: PilgrimProfilePage.softMint.withOpacity(0.6),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          "$currentAge",
+                          style: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w900,
+                            color: PilgrimProfilePage.primary,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Container(
+                      width: 36,
+                      height: 36,
+                      decoration: BoxDecoration(
+                        color: currentAge < maxAge
+                            ? PilgrimProfilePage.primary
+                            : Colors.black.withOpacity(0.12),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Material(
+                        color: Colors.transparent,
+                        child: InkWell(
+                          onTap: currentAge < maxAge
+                              ? () {
+                                  onAgeChanged("${currentAge + 1}");
+                                }
+                              : null,
+                          borderRadius: BorderRadius.circular(10),
+                          child: Icon(
+                            Icons.add_rounded,
+                            color: currentAge < maxAge
+                                ? Colors.white
+                                : Colors.black.withOpacity(0.4),
+                            size: 20,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _DropdownField extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String value;
+  final List<String> items;
+  final String Function(String item) localizedValue;
+  final ValueChanged<String?> onChanged;
+
+  const _DropdownField({
+    required this.icon,
+    required this.label,
+    required this.value,
+    required this.items,
+    required this.localizedValue,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          width: 42,
+          height: 42,
+          decoration: BoxDecoration(
+            color: PilgrimProfilePage.softMint,
+            borderRadius: BorderRadius.circular(14),
+          ),
+          child: Icon(icon, color: PilgrimProfilePage.primary, size: 21),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: DropdownButtonFormField<String>(
+            value: value,
+            dropdownColor: Colors.white,
+            borderRadius: BorderRadius.circular(18),
+            icon: const Icon(
+              Icons.keyboard_arrow_down_rounded,
+              color: Colors.black54,
+            ),
+            style: const TextStyle(
+              color: Colors.black87,
+              fontWeight: FontWeight.w700,
+              fontSize: 14.2,
+            ),
+            items: items
+                .map(
+                  (item) => DropdownMenuItem<String>(
+                    value: item,
+                    child: Text(
+                      localizedValue(item),
+                      style: const TextStyle(
+                        color: Colors.black87,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                )
+                .toList(),
+            onChanged: onChanged,
+            decoration: InputDecoration(
+              labelText: label,
+              labelStyle: const TextStyle(
+                color: PilgrimProfilePage.primary,
+                fontWeight: FontWeight.w600,
+              ),
+              floatingLabelStyle: const TextStyle(
+                color: PilgrimProfilePage.primary,
+                fontWeight: FontWeight.w700,
+              ),
+              isDense: true,
+              filled: true,
+              fillColor: const Color(0xFFF8FAFA),
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 12,
+                vertical: 14,
+              ),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: BorderSide(color: Colors.black.withOpacity(0.08)),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: BorderSide(color: Colors.black.withOpacity(0.08)),
+              ),
+              focusedBorder: const OutlineInputBorder(
+                borderRadius: BorderRadius.all(Radius.circular(14)),
+                borderSide: BorderSide(
+                  color: PilgrimProfilePage.primary,
+                  width: 1.2,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _MultiSelectAllergyField extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final List<String> items;
+  final List<String> selectedItems;
+  final TextEditingController otherController;
+  final String Function(String item) localizedValue;
+  final void Function(String allergy, bool selected) onToggle;
+  final ValueChanged<String> onOtherChanged;
+
+  const _MultiSelectAllergyField({
+    required this.icon,
+    required this.label,
+    required this.items,
+    required this.selectedItems,
+    required this.otherController,
+    required this.localizedValue,
+    required this.onToggle,
+    required this.onOtherChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          width: 42,
+          height: 42,
+          decoration: BoxDecoration(
+            color: PilgrimProfilePage.softMint,
+            borderRadius: BorderRadius.circular(14),
+          ),
+          child: Icon(icon, color: PilgrimProfilePage.primary, size: 21),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF8FAFA),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: Colors.black.withOpacity(0.08)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 12.5,
+                    color: Colors.black.withOpacity(0.6),
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: items.map((item) {
+                    final selected = selectedItems.contains(item);
+                    return FilterChip(
+                      label: Text(localizedValue(item)),
+                      selected: selected,
+                      onSelected: (value) => onToggle(item, value),
+                      selectedColor: PilgrimProfilePage.mint.withOpacity(0.35),
+                      checkmarkColor: PilgrimProfilePage.primary,
+                      side: BorderSide(
+                        color: PilgrimProfilePage.mint.withOpacity(0.8),
+                      ),
+                      labelStyle: const TextStyle(
+                        fontWeight: FontWeight.w700,
+                        color: PilgrimProfilePage.primary,
+                      ),
+                    );
+                  }).toList(),
+                ),
+                if (selectedItems.contains("Other")) ...[
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: otherController,
+                    onChanged: onOtherChanged,
+                    textInputAction: TextInputAction.done,
+                    inputFormatters: [
+                      FilteringTextInputFormatter.allow(
+                        RegExp(r"[a-zA-Z\u0600-\u06FF\s,.-]"),
+                      ),
+                    ],
+                    decoration: InputDecoration(
+                      labelText: "Specify other allergy",
+                      hintText: "Example: Strawberry",
+                      isDense: true,
+                      filled: true,
+                      fillColor: Colors.white,
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 14,
+                      ),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(14),
+                        borderSide: BorderSide(
+                          color: Colors.black.withOpacity(0.08),
+                        ),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(14),
+                        borderSide: BorderSide(
+                          color: Colors.black.withOpacity(0.08),
+                        ),
+                      ),
+                      focusedBorder: const OutlineInputBorder(
+                        borderRadius: BorderRadius.all(Radius.circular(14)),
+                        borderSide: BorderSide(
+                          color: PilgrimProfilePage.primary,
+                          width: 1.2,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _InfoRow extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String value;
+  final Color? valueColor;
+  final VoidCallback? onTap;
+
+  const _InfoRow({
+    required this.icon,
+    required this.title,
+    required this.value,
+    this.valueColor,
+    this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final child = Row(
+      children: [
+        Container(
+          width: 42,
+          height: 42,
+          decoration: BoxDecoration(
+            color: PilgrimProfilePage.softMint,
+            borderRadius: BorderRadius.circular(14),
+          ),
+          child: Icon(icon, color: PilgrimProfilePage.primary, size: 21),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: TextStyle(
+                  fontSize: 12.5,
+                  color: Colors.black.withOpacity(0.55),
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                value,
+                style: TextStyle(
+                  fontSize: 14.2,
+                  fontWeight: FontWeight.w800,
+                  color: valueColor ?? Colors.black87,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+
+    if (onTap == null) return child;
+
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 2),
+        child: child,
+      ),
+    );
+  }
+}
+
+class _SettingRow extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String value;
+  final VoidCallback? onTap;
+
+  const _SettingRow({
+    required this.icon,
+    required this.title,
+    required this.value,
+    this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(14),
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        child: Row(
+          children: [
+            Container(
+              width: 42,
+              height: 42,
+              decoration: BoxDecoration(
+                color: PilgrimProfilePage.softMint,
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: Icon(icon, color: PilgrimProfilePage.primary, size: 21),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                title,
+                style: const TextStyle(
+                  fontSize: 14.2,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ),
+            Text(
+              value,
+              style: TextStyle(
+                fontSize: 12.6,
+                color: Colors.black.withOpacity(0.58),
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(width: 6),
+            const Icon(Icons.chevron_right_rounded, color: Colors.black45),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SwitchSettingRow extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final bool value;
+  final ValueChanged<bool> onChanged;
+
+  const _SwitchSettingRow({
+    required this.icon,
+    required this.title,
+    required this.value,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Container(
+          width: 42,
+          height: 42,
+          decoration: BoxDecoration(
+            color: PilgrimProfilePage.softMint,
+            borderRadius: BorderRadius.circular(14),
+          ),
+          child: Icon(icon, color: PilgrimProfilePage.primary, size: 21),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Text(
+            title,
+            style: const TextStyle(fontSize: 14.2, fontWeight: FontWeight.w800),
+          ),
+        ),
+        Transform.scale(
+          scale: 0.82,
+          child: Switch(
+            value: value,
+            onChanged: onChanged,
+            activeColor: PilgrimProfilePage.primary,
+            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _TagsWrap extends StatelessWidget {
+  final List<String> tags;
+
+  const _TagsWrap({required this.tags});
+
+  @override
+  Widget build(BuildContext context) {
+    if (tags.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: tags
+          .map(
+            (tag) => Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: PilgrimProfilePage.softMint,
+                borderRadius: BorderRadius.circular(999),
+                border: Border.all(
+                  color: PilgrimProfilePage.mint.withOpacity(0.8),
+                ),
+              ),
+              child: Text(
+                tag,
+                style: const TextStyle(
+                  fontSize: 11.8,
+                  fontWeight: FontWeight.w800,
+                  color: PilgrimProfilePage.primary,
+                ),
+              ),
+            ),
+          )
+          .toList(),
+    );
+  }
+}
+
+class _WhiteCard extends StatelessWidget {
+  final Widget child;
+
+  const _WhiteCard({required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: Colors.black.withOpacity(0.05)),
+        boxShadow: [
+          BoxShadow(
+            blurRadius: 20,
+            offset: const Offset(0, 12),
+            color: Colors.black.withOpacity(0.05),
+          ),
+        ],
+      ),
+      child: child,
+    );
+  }
+}

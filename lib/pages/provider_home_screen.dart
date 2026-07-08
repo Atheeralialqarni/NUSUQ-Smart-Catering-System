@@ -1,0 +1,658 @@
+import 'dart:convert';
+
+import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:http/http.dart' as http;
+
+import '../l10n/app_localizations.dart';
+import 'incoming_meal_requests_page.dart';
+import 'provider_dashboard_page.dart';
+import 'provider_history_screen.dart';
+import 'provider_manage_meals_screen.dart';
+import 'provider_mangae_campaign_screen.dart';
+import 'provider_notifications_page.dart';
+import '../widgets/provider_bottom_nav.dart';
+import '../services/provider_service.dart';
+import '../session/user_session.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+class ProviderHomeScreen extends StatefulWidget {
+  static const String routeName = '/provider-home';
+
+  const ProviderHomeScreen({super.key});
+
+  @override
+  State<ProviderHomeScreen> createState() => _ProviderHomeScreenState();
+}
+
+class _SectionLabel extends StatelessWidget {
+  final String title;
+
+  const _SectionLabel({required this.title});
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      title,
+      style: TextStyle(
+        fontSize: 13.5,
+        fontWeight: FontWeight.w900,
+        color: Colors.black.withOpacity(0.78),
+      ),
+    );
+  }
+}
+
+class _ProviderHomeScreenState extends State<ProviderHomeScreen> {
+  int _navIndex = 0;
+  int unreadCount = 0;
+
+  final ProviderService _providerService = ProviderService();
+  late Future<Map<String, dynamic>> _homeFuture;
+
+  static const Color bg = Color(0xFFF3F6F5);
+
+  String get baseUrl {
+    if (kIsWeb) {
+      return 'http://localhost:3000/api';
+    }
+    return 'http://10.0.2.2:3000/api';
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _reloadHomeData();
+    _loadUnreadCount();
+  }
+
+  void _reloadHomeData() {
+    _homeFuture = _providerService.getProviderHomeData(UserSession.userId!);
+  }
+
+  Future<void> _loadUnreadCount() async {
+    final prefs = await SharedPreferences.getInstance();
+
+    final enabled = prefs.getBool('provider_notifications_enabled') ?? true;
+
+    if (!enabled) {
+      if (!mounted) return;
+
+      setState(() {
+        unreadCount = 0;
+      });
+
+      return;
+    }
+
+    try {
+      final response = await http.get(
+        Uri.parse(
+          '$baseUrl/notifications/unread-count/${UserSession.userId}/provider',
+        ),
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+
+        if (!mounted) return;
+
+        setState(() {
+          unreadCount = data['count'] ?? 0;
+        });
+      }
+    } catch (e) {
+      debugPrint(e.toString());
+    }
+  }
+
+  Future<void> _openIncomingRequestsPage() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const IncomingMealRequestsPage()),
+    );
+
+    if (!mounted) return;
+
+    setState(() {
+      _reloadHomeData();
+    });
+  }
+
+  void _tapNav(int i) {
+    if (i == _navIndex) return;
+
+    HapticFeedback.selectionClick();
+    setState(() => _navIndex = i);
+
+    if (i == 1) {
+      _openIncomingRequestsPage();
+    } else if (i == 2) {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => const ProviderDashboardPage()),
+      );
+    } else if (i == 3) {
+      Navigator.pushReplacementNamed(context, '/providerProfile');
+    }
+  }
+
+  Future<void> _openNotificationsPage() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const ProviderNotificationsPage()),
+    );
+
+    await Future.delayed(const Duration(milliseconds: 300));
+
+    _loadUnreadCount();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+
+    return Scaffold(
+      backgroundColor: bg,
+      appBar: _ProviderMainAppBar(
+        onTapNotifications: _openNotificationsPage,
+        unreadCount: unreadCount,
+      ),
+      body: SafeArea(
+        top: false,
+        child: FutureBuilder<Map<String, dynamic>>(
+          future: _homeFuture,
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const Center(child: CircularProgressIndicator());
+            }
+
+            if (snapshot.hasError) {
+              return Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Text(
+                    '${l10n.errorLoadingHomeData}: ${snapshot.error}',
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+              );
+            }
+
+            final data = snapshot.data ?? {};
+            final providerName = data['fullName'] ?? l10n.provider;
+            final latestOrder = data['latestOrder'];
+            final newRequestsCount = data['newRequestsCount'] ?? 0;
+
+            final String orderText;
+            if (newRequestsCount == 0 || latestOrder == null) {
+              orderText = l10n.noNewRequests;
+            } else {
+              orderText = "${l10n.orderNumber} ${latestOrder['orderID']}";
+            }
+
+            return SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 22),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _ProviderTopBlock(providerName: providerName),
+                  const SizedBox(height: 14),
+                  _RequestsCard(
+                    newRequestsCount: newRequestsCount,
+                    orderText: orderText,
+                    onTapViewAll: _openIncomingRequestsPage,
+                    onTapCard: _openIncomingRequestsPage,
+                  ),
+                  const SizedBox(height: 18),
+                  _SectionLabel(title: l10n.services),
+                  const SizedBox(height: 12),
+                  const ProviderServicesList(),
+                ],
+              ),
+            );
+          },
+        ),
+      ),
+      bottomNavigationBar: ProviderBottomNav(
+        currentIndex: _navIndex,
+        onTap: _tapNav,
+      ),
+    );
+  }
+}
+
+class _ProviderMainAppBar extends StatelessWidget
+    implements PreferredSizeWidget {
+  final VoidCallback onTapNotifications;
+  final int unreadCount;
+
+  const _ProviderMainAppBar({
+    required this.onTapNotifications,
+    required this.unreadCount,
+  });
+
+  @override
+  Size get preferredSize => const Size.fromHeight(58);
+
+  @override
+  Widget build(BuildContext context) {
+    return Directionality(
+      textDirection: TextDirection.ltr,
+      child: AppBar(
+        backgroundColor: Colors.white,
+        elevation: 0.6,
+        shadowColor: Colors.black.withOpacity(0.08),
+        surfaceTintColor: Colors.white,
+        automaticallyImplyLeading: false,
+        titleSpacing: 8,
+        title: const Row(
+          children: [
+            SizedBox(width: 4),
+            Text(
+              "NUSUQ",
+              style: TextStyle(
+                color: Colors.black87,
+                fontSize: 17,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 0.4,
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          IconButton(
+            onPressed: onTapNotifications,
+            icon: Stack(
+              clipBehavior: Clip.none,
+              children: [
+                const Icon(
+                  Icons.notifications,
+                  color: Colors.black87,
+                  size: 20,
+                ),
+                if (unreadCount > 0)
+                  Positioned(
+                    right: -7,
+                    top: -7,
+                    child: Container(
+                      padding: const EdgeInsets.all(4),
+                      constraints: const BoxConstraints(
+                        minWidth: 17,
+                        minHeight: 17,
+                      ),
+                      decoration: const BoxDecoration(
+                        color: Colors.red,
+                        shape: BoxShape.circle,
+                      ),
+                      child: Text(
+                        unreadCount > 99 ? '99+' : unreadCount.toString(),
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 9,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 6),
+        ],
+      ),
+    );
+  }
+}
+
+class _ProviderTopBlock extends StatelessWidget {
+  final String providerName;
+
+  const _ProviderTopBlock({required this.providerName});
+
+  static const Color primaryDark = Color(0xFF062C26);
+  static const Color primary = Color(0xFF0D4C4A);
+  static const Color primaryMid = Color(0xFF1A6B66);
+  static const Color mint = Color(0xFF9FE5C9);
+  static const Color gold = Color(0xFFF0E0C0);
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(24),
+      child: Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(24),
+          boxShadow: [
+            BoxShadow(
+              blurRadius: 24,
+              offset: const Offset(0, 14),
+              color: Colors.black.withOpacity(0.07),
+            ),
+          ],
+        ),
+        child: Stack(
+          children: [
+            Container(
+              padding: const EdgeInsets.fromLTRB(16, 18, 16, 18),
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [primaryDark, primary, primaryMid],
+                ),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    width: 52,
+                    height: 52,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: Colors.white.withOpacity(0.12),
+                      border: Border.all(color: Colors.white.withOpacity(0.26)),
+                    ),
+                    child: const Icon(Icons.storefront, color: Colors.white),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          providerName,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 18,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          l10n.welcomeBack,
+                          style: TextStyle(
+                            color: Colors.white.withOpacity(0.86),
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Positioned(
+              right: -30,
+              top: -40,
+              child: Container(
+                width: 130,
+                height: 130,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: mint.withOpacity(0.12),
+                ),
+              ),
+            ),
+            Positioned(
+              left: -40,
+              bottom: -50,
+              child: Container(
+                width: 150,
+                height: 150,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: gold.withOpacity(0.10),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _RequestsCard extends StatelessWidget {
+  final int newRequestsCount;
+  final String orderText;
+  final VoidCallback onTapViewAll;
+  final VoidCallback onTapCard;
+
+  const _RequestsCard({
+    required this.newRequestsCount,
+    required this.orderText,
+    required this.onTapViewAll,
+    required this.onTapCard,
+  });
+
+  static const Color primary = Color(0xFF0D4C4A);
+  static const Color mint = Color(0xFF9FE5C9);
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+
+    return InkWell(
+      onTap: onTapCard,
+      borderRadius: BorderRadius.circular(20),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [
+            BoxShadow(
+              blurRadius: 20,
+              offset: const Offset(0, 12),
+              color: Colors.black.withOpacity(0.05),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            const Icon(Icons.inbox_rounded, color: primary, size: 28),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Text(
+                        l10n.requestsList,
+                        style: const TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 5,
+                        ),
+                        decoration: BoxDecoration(
+                          color: mint.withOpacity(0.6),
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                        child: Text(
+                          "$newRequestsCount ${l10n.newText}",
+                          style: const TextStyle(
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w900,
+                            color: primary,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    "$newRequestsCount ${l10n.newRequests}",
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: Colors.black.withOpacity(0.6),
+                    ),
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    orderText,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.black.withOpacity(0.55),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            TextButton(
+              style: TextButton.styleFrom(
+                foregroundColor: primary,
+                textStyle: const TextStyle(fontWeight: FontWeight.w900),
+              ),
+              onPressed: onTapViewAll,
+              child: Text(l10n.viewAll),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class ProviderServicesList extends StatelessWidget {
+  const ProviderServicesList({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+
+    return Column(
+      children: [
+        _ServiceListCard(
+          title: l10n.orderHistory,
+          subtitle: l10n.reviewPreviousOrders,
+          icon: Icons.history,
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const ProviderHistoryScreen()),
+            );
+          },
+        ),
+        const SizedBox(height: 12),
+        _ServiceListCard(
+          title: l10n.performanceAndReports,
+          subtitle: l10n.trackStatsAndInsights,
+          icon: Icons.bar_chart_rounded,
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const ProviderDashboardPage()),
+            );
+          },
+        ),
+        const SizedBox(height: 12),
+        _ServiceListCard(
+          title: l10n.manageMeal,
+          subtitle: l10n.addEditYourMeals,
+          icon: Icons.restaurant_menu,
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => const ProviderMealManagementScreen(),
+              ),
+            );
+          },
+        ),
+        const SizedBox(height: 12),
+        _ServiceListCard(
+          title: l10n.manageCampaign,
+          subtitle: l10n.updateCampaignSettings,
+          icon: Icons.campaign,
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => const ProviderCampaignManagementScreen(),
+              ),
+            );
+          },
+        ),
+      ],
+    );
+  }
+}
+
+class _ServiceListCard extends StatelessWidget {
+  final String title;
+  final String subtitle;
+  final IconData icon;
+  final VoidCallback onTap;
+
+  const _ServiceListCard({
+    required this.title,
+    required this.subtitle,
+    required this.icon,
+    required this.onTap,
+  });
+
+  static const Color primary = Color(0xFF0D4C4A);
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(20),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [
+            BoxShadow(
+              blurRadius: 18,
+              offset: const Offset(0, 10),
+              color: Colors.black.withOpacity(0.05),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            Icon(icon, color: primary, size: 26),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    subtitle,
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: Colors.black.withOpacity(0.6),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Icon(Icons.arrow_forward_ios, size: 16),
+          ],
+        ),
+      ),
+    );
+  }
+}

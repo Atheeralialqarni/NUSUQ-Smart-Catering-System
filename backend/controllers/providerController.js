@@ -1,0 +1,228 @@
+const db = require('../config/db');
+
+const getProviderHomeData = async (req, res) => {
+    try {
+        const { providerID } = req.params;
+
+        const [providerRows] = await db.query(
+            `
+      SELECT providerID, fullName, email, phoneNumber
+      FROM provider
+      WHERE providerID = ?
+      `,
+            [providerID]
+        );
+
+        if (providerRows.length === 0) {
+            return res.status(404).json({
+                message: 'Provider not found',
+            });
+        }
+
+        const provider = providerRows[0];
+
+        const [orderRows] = await db.query(
+            `
+      SELECT 
+        mo.orderID,
+        mo.requestDate,
+        mo.status,
+
+        m.mealName,
+        m.mealName_en,
+        m.mealName_ar
+      FROM meal_order mo
+      JOIN meal m ON mo.mealID = m.mealID
+      WHERE m.providerID = ? AND mo.status = 'pending'
+      ORDER BY mo.requestDate DESC
+      LIMIT 1
+      `,
+            [providerID]
+        );
+
+        let latestOrder = null;
+
+        if (orderRows.length > 0) {
+            const order = orderRows[0];
+
+            latestOrder = {
+                orderID: order.orderID,
+
+                mealName:
+                    order.mealName ||
+                    order.mealName_en ||
+                    order.mealName_ar ||
+                    '',
+
+                mealName_en:
+                    order.mealName_en ||
+                    order.mealName ||
+                    order.mealName_ar ||
+                    '',
+
+                mealName_ar:
+                    order.mealName_ar ||
+                    order.mealName ||
+                    order.mealName_en ||
+                    '',
+
+                requestDate: order.requestDate,
+                status: order.status,
+            };
+        }
+
+        const [countRows] = await db.query(
+            `
+      SELECT COUNT(*) AS newRequestsCount
+      FROM meal_order mo
+      JOIN meal m ON mo.mealID = m.mealID
+      WHERE m.providerID = ? AND mo.status = 'pending'
+      `,
+            [providerID]
+        );
+
+        return res.status(200).json({
+            fullName: provider.fullName,
+            latestOrder,
+            newRequestsCount: countRows[0].newRequestsCount,
+        });
+    } catch (error) {
+        return res.status(500).json({
+            message: 'Error fetching provider home data',
+            error: error.message,
+        });
+    }
+};
+
+const getProviderProfile = async (req, res) => {
+    try {
+        const { providerID } = req.params;
+
+        const [rows] = await db.query(
+            `
+      SELECT 
+        providerID,
+        fullName,
+        email,
+        phoneNumber
+      FROM provider
+      WHERE providerID = ?
+      `,
+            [providerID]
+        );
+
+        if (rows.length === 0) {
+            return res.status(404).json({
+                message: 'Provider not found',
+            });
+        }
+
+        return res.status(200).json(rows[0]);
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({
+            message: 'Failed to load profile',
+        });
+    }
+};
+
+const updateProviderProfile = async (req, res) => {
+    try {
+        const { providerID, fullName, email, phoneNumber } = req.body;
+
+        if (!providerID || !fullName || !email || !phoneNumber) {
+            return res.status(400).json({
+                message: 'All fields are required',
+            });
+        }
+
+        await db.query(
+            `
+      UPDATE provider
+      SET fullName = ?, email = ?, phoneNumber = ?
+      WHERE providerID = ?
+      `,
+            [fullName, email, phoneNumber, providerID]
+        );
+
+        return res.status(200).json({
+            message: 'Profile updated successfully',
+        });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({
+            message: 'Failed to update profile',
+        });
+    }
+};
+
+const getProviderProfileSummary = async (req, res) => {
+    try {
+        const { providerID } = req.params;
+
+        const [totalOrdersRows] = await db.query(
+            `
+      SELECT COUNT(*) AS totalOrders
+      FROM meal_order mo
+      JOIN meal m ON mo.mealID = m.mealID
+      WHERE m.providerID = ?
+      `,
+            [providerID]
+        );
+
+        const [acceptedRows] = await db.query(
+            `
+      SELECT COUNT(*) AS acceptedOrders
+      FROM meal_order mo
+      JOIN meal m ON mo.mealID = m.mealID
+      WHERE m.providerID = ? AND mo.status = 'accepted'
+      `,
+            [providerID]
+        );
+
+        const [rejectedRows] = await db.query(
+            `
+      SELECT COUNT(*) AS rejectedOrders
+      FROM meal_order mo
+      JOIN meal m ON mo.mealID = m.mealID
+      WHERE m.providerID = ? AND mo.status = 'rejected'
+      `,
+            [providerID]
+        );
+
+        const [campaignRows] = await db.query(
+            `
+      SELECT
+        campaignID,
+        campaignName,
+        campaignNumber,
+        numberOfPilgrims,
+        arrivalDetails
+      FROM campaign
+      WHERE providerID = ?
+      ORDER BY campaignID DESC
+      `,
+            [providerID]
+        );
+
+        return res.status(200).json({
+            totalOrders: totalOrdersRows[0].totalOrders || 0,
+            acceptedOrders: acceptedRows[0].acceptedOrders || 0,
+            rejectedOrders: rejectedRows[0].rejectedOrders || 0,
+            campaignsCount: campaignRows.length,
+            campaigns: campaignRows,
+        });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({
+            message: 'Failed to load provider profile summary',
+        });
+    }
+};
+
+module.exports = {
+    getProviderHomeData,
+    getProviderProfile,
+    updateProviderProfile,
+    getProviderProfileSummary,
+};

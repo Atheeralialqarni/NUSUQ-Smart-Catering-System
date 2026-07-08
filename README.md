@@ -1,0 +1,267 @@
+# NUSUQ - Smart Catering & Nutrition Management System
+
+<p align="center">
+  <strong>AI-powered smart catering platform for Hajj and Umrah pilgrims</strong>
+</p>
+
+<p align="center">
+  <img src="https://img.shields.io/badge/Flutter-Frontend-blue" />
+  <img src="https://img.shields.io/badge/Node.js-Backend-green" />
+  <img src="https://img.shields.io/badge/MySQL-Database-orange" />
+  <img src="https://img.shields.io/badge/OpenAI-AI%20Integration-purple" />
+</p>
+
+## Overview
+
+**NUSUQ** is a graduation project that provides an integrated smart catering management system for Hajj and Umrah services. The system supports pilgrims, meal providers, and administrators through a unified mobile application that connects health profiles, meal ordering, campaign management, provider operations, and AI-powered insights.
+
+The main goal of NUSUQ is to help pilgrims receive meals that better match their health needs, while helping catering offices estimate meal demand, improve operational planning, and reduce food waste.
+
+## Problem
+
+Catering services during Hajj and Umrah often face challenges such as:
+
+- Difficulty understanding pilgrims' health and dietary needs.
+- Preparing meals without accurate demand expectations.
+- Food waste caused by overproduction or poor planning.
+- Limited visibility for providers and administrators over orders, campaigns, and meal performance.
+
+## Solution
+
+NUSUQ addresses these challenges through three connected user roles:
+
+### Pilgrim
+
+- Create and update a health profile.
+- View meals available through the selected campaign's catering provider.
+- Receive AI-assisted meal guidance based on health information.
+- Submit meal orders and track order history.
+- Receive notifications and updates.
+
+### Meal Provider
+
+- Manage meals and meal details.
+- Manage campaigns linked to pilgrims.
+- Review incoming meal requests.
+- Track order history and feedback.
+- View AI dashboard insights for demand and risk analysis.
+
+### Admin
+
+- Manage providers, campaigns, and pilgrims.
+- Monitor orders across campaigns and providers.
+- Create and send notifications.
+- View system-level operational data.
+
+## Key Features
+
+- AI-powered meal recommendation and dashboard insights.
+- Health profile management for pilgrims.
+- Meal and campaign management for providers.
+- Order monitoring for providers and admins.
+- Notification management in Arabic and English.
+- Reports and performance dashboard.
+- REST API integration between Flutter and Node.js backend.
+- MySQL database integration.
+- Bilingual interface support structure.
+
+## Tech Stack
+
+### Frontend
+
+- Flutter
+- Dart
+- HTTP package
+- Shared Preferences
+- Image Picker
+- Internationalization / Localization support
+
+### Backend
+
+- Node.js
+- Express.js
+- MySQL2
+- OpenAI API
+- Multer
+- Nodemailer
+- PDFKit
+- bcrypt / bcryptjs
+- dotenv
+- CORS
+
+### Database
+
+- MySQL
+- SQL schema included in `database/nusuq_database.sql`
+
+## System Architecture
+
+```text
+Flutter Mobile Application
+        |
+        | REST APIs
+        v
+Node.js + Express Backend
+        |
+        v
+MySQL Database
+        |
+        v
+OpenAI API Integration
+```
+
+## Screenshots
+
+### Authentication
+
+<p align="center">
+  <img src="docs/screenshots/01-login.png" width="260" />
+</p>
+
+### Pilgrim Experience
+
+<p align="center">
+  <img src="docs/screenshots/02-pilgrim-home.png" width="260" />
+  <img src="docs/screenshots/03-pilgrim-health-profile.png" width="260" />
+  <img src="docs/screenshots/09-order-history.png" width="260" />
+</p>
+
+### Provider Dashboard
+
+<p align="center">
+  <img src="docs/screenshots/04-provider-reports-ai-insights.png" width="260" />
+  <img src="docs/screenshots/05-provider-campaigns.png" width="260" />
+  <img src="docs/screenshots/07-provider-meals.png" width="260" />
+</p>
+
+### Campaigns and Meals
+
+<p align="center">
+  <img src="docs/screenshots/06-add-campaign.png" width="260" />
+  <img src="docs/screenshots/08-add-meal.png" width="260" />
+</p>
+
+### Admin Dashboard
+
+<p align="center">
+  <img src="docs/screenshots/10-admin-home.png" width="260" />
+  <img src="docs/screenshots/11-admin-manage-accounts.png" width="260" />
+  <img src="docs/screenshots/12-admin-monitor-orders.png" width="260" />
+</p>
+
+### Notifications
+
+<p align="center">
+  <img src="docs/screenshots/13-admin-notifications.png" width="260" />
+</p>
+
+## Project Structure
+
+```text
+NUSUQ-Smart-Catering-System/
+│
+├── backend/              # Node.js + Express backend
+│   ├── config/           # Database configuration
+│   ├── controllers/      # API controllers
+│   ├── models/           # Backend models
+│   ├── routes/           # API routes
+│   └── services/         # Business logic services
+│
+├── lib/                  # Flutter application source code
+│   ├── models/           # Flutter data models
+│   ├── pages/            # Application screens
+│   ├── services/         # API service classes
+│   ├── session/          # User session handling
+│   ├── theme/            # App colors and theme
+│   └── widgets/          # Reusable UI widgets
+│
+├── database/             # SQL database file
+├── docs/screenshots/     # Project screenshots
+├── android/              # Android platform files
+├── ios/                  # iOS platform files
+├── web/                  # Web platform files
+├── pubspec.yaml          # Flutter dependencies
+└── README.md
+```
+
+## Getting Started
+
+### Prerequisites
+
+Make sure you have the following installed:
+
+- Flutter SDK
+- Dart SDK
+- Node.js
+- MySQL
+- Git
+
+### Backend Setup
+
+```bash
+cd backend
+npm install
+cp .env.example .env
+```
+
+Update `.env` with your local database, email, and OpenAI credentials.
+
+Then run:
+
+```bash
+node server.js
+```
+
+### Database Setup
+
+1. Create a MySQL database.
+2. Import the SQL file:
+
+```bash
+mysql -u root -p nusuq_database < database/nusuq_database.sql
+```
+
+3. Update the database variables in `backend/.env`.
+
+### Flutter App Setup
+
+From the project root:
+
+```bash
+flutter pub get
+flutter run
+```
+
+## My Role
+
+As the **Team Leader**, I coordinated the project planning and development process while contributing across multiple technical areas.
+
+My responsibilities included:
+
+- Leading the team and coordinating development tasks.
+- Contributing to both frontend and backend development.
+- Participating in database design and integration.
+- Developing and connecting REST APIs.
+- Supporting the AI-powered meal recommendation and dashboard insight features.
+- Participating in system analysis and software engineering activities.
+- Preparing, structuring, and organizing the complete project documentation and final report.
+- Ensuring consistency between the system design, implementation, and documentation.
+
+## Future Improvements
+
+- Enhance the AI recommendation model with nutrition datasets.
+- Add advanced demand forecasting for providers.
+- Integrate wearable health data.
+- Improve multilingual support for international pilgrims.
+- Add real-time analytics for large-scale Hajj operations.
+- Integrate with official Hajj and Umrah platforms.
+
+## Notes
+
+- The `.env` file is intentionally excluded for security reasons.
+- Use `backend/.env.example` as a template for local setup.
+- Screenshots shown in this README use sample testing data.
+
+## Academic Context
+
+This project was developed as a Software Engineering graduation project at Umm Al-Qura University.
