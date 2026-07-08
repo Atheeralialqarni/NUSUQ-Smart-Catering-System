@@ -129,6 +129,7 @@ OpenAI API Integration
 ### Provider Dashboard
 
 <p align="center">
+  <img src="docs/screenshots/10-admin-home.png" width="260" />
   <img src="docs/screenshots/05-provider-campaigns.png" width="260" />
   <img src="docs/screenshots/07-provider-meals.png" width="260" />
 </p>
@@ -142,7 +143,6 @@ OpenAI API Integration
 ### Admin Dashboard
 
 <p align="center">
-  <img src="docs/screenshots/10-admin-home.png" width="260" />
   <img src="docs/screenshots/11-admin-manage-accounts.png" width="260" />
   <img src="docs/screenshots/12-admin-monitor-orders.png" width="260" />
 </p>
