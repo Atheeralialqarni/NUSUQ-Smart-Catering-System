@@ -135,8 +135,8 @@ OpenAI API Integration
 
 ### Campaigns and Meals
 
-<p align="center">
-  <img src="docs/screenshots/06-add-campaign.png" width="260" />
+<p align="center"> 
+  <img src="docs/screenshots/08-add-meal.png" width="260" />
 </p>
 
 ### Admin Dashboard
