@@ -124,12 +124,12 @@ OpenAI API Integration
   <img src="docs/screenshots/02-pilgrim-home.png" width="260" />
   <img src="docs/screenshots/03-pilgrim-health-profile.png" width="260" />
   <img src="docs/screenshots/09-order-history.png" width="260" />
+  <img src="docs/screenshots/04-provider-reports-ai-insights.png" width="260" />
 </p>
 
 ### Provider Dashboard
 
 <p align="center">
-  <img src="docs/screenshots/04-provider-reports-ai-insights.png" width="260" />
   <img src="docs/screenshots/05-provider-campaigns.png" width="260" />
   <img src="docs/screenshots/07-provider-meals.png" width="260" />
 </p>
