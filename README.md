@@ -137,7 +137,6 @@ OpenAI API Integration
 
 <p align="center">
   <img src="docs/screenshots/06-add-campaign.png" width="260" />
-  <img src="docs/screenshots/08-add-meal.png" width="260" />
 </p>
 
 ### Admin Dashboard
