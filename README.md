@@ -72,22 +72,13 @@ NUSUQ addresses these challenges through three connected user roles:
 - Flutter
 - Dart
 - HTTP package
-- Shared Preferences
-- Image Picker
-- Internationalization / Localization support
 
 ### Backend
 
 - Node.js
 - Express.js
-- MySQL2
 - OpenAI API
-- Multer
-- Nodemailer
-- PDFKit
-- bcrypt / bcryptjs
-- dotenv
-- CORS
+
 
 ### Database
 
