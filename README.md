@@ -94,21 +94,6 @@ NUSUQ addresses these challenges through three connected user roles:
 - MySQL
 - SQL schema included in `database/nusuq_database.sql`
 
-## System Architecture
-
-```text
-Flutter Mobile Application
-        |
-        | REST APIs
-        v
-Node.js + Express Backend
-        |
-        v
-MySQL Database
-        |
-        v
-OpenAI API Integration
-```
 
 ## Screenshots
 
@@ -153,34 +138,6 @@ OpenAI API Integration
   <img src="docs/screenshots/13-admin-notifications.png" width="260" />
 </p>
 
-## Project Structure
-
-```text
-NUSUQ-Smart-Catering-System/
-│
-├── backend/              # Node.js + Express backend
-│   ├── config/           # Database configuration
-│   ├── controllers/      # API controllers
-│   ├── models/           # Backend models
-│   ├── routes/           # API routes
-│   └── services/         # Business logic services
-│
-├── lib/                  # Flutter application source code
-│   ├── models/           # Flutter data models
-│   ├── pages/            # Application screens
-│   ├── services/         # API service classes
-│   ├── session/          # User session handling
-│   ├── theme/            # App colors and theme
-│   └── widgets/          # Reusable UI widgets
-│
-├── database/             # SQL database file
-├── docs/screenshots/     # Project screenshots
-├── android/              # Android platform files
-├── ios/                  # iOS platform files
-├── web/                  # Web platform files
-├── pubspec.yaml          # Flutter dependencies
-└── README.md
-```
 
 ## Getting Started
 
