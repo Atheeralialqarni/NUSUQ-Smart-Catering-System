@@ -91,7 +91,7 @@ NUSUQ addresses these challenges through three connected user roles:
 
 <p align="center">
   <img src="docs/screenshots/authentication.png
-" width="260" />
+" width="400" />
 </p>
 
 ### Pilgrim Experience
