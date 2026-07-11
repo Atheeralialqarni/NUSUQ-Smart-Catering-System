@@ -90,25 +90,26 @@ NUSUQ addresses these challenges through three connected user roles:
 ### Authentication
 
 <p align="center">
-  <img src="docs/screenshots/01-login.png" width="260" />
+  <img src="docs/screenshots/authentication.png
+" width="260" />
 </p>
 
 ### Pilgrim Experience
 
 <p align="center">
-  <img src="docs/screenshots/02-pilgrim-home.png" width="260" />
+  <img src="docs/screenshots/pilgrim-app.png" width="260" />
 </p>
 
 ### Provider Experience
 
 <p align="center">
-  <img src="docs/screenshots/10-admin-home.png" width="260" />
+  <img src="docs/screenshots/provider-app.png" width="260" />
 </p>
 
 ### Admin Dashboard
 
 <p align="center">
-  <img src="docs/screenshots/11-admin-manage-accounts.png" width="260" />
+  <img src="docs/screenshots/admin-dashboard.png" width="260" />
 </p>
 
 
