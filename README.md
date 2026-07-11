@@ -97,35 +97,18 @@ NUSUQ addresses these challenges through three connected user roles:
 
 <p align="center">
   <img src="docs/screenshots/02-pilgrim-home.png" width="260" />
-  <img src="docs/screenshots/03-pilgrim-health-profile.png" width="260" />
-  <img src="docs/screenshots/04-provider-reports-ai-insights.png" width="260" />
 </p>
 
-### Provider Dashboard
+### Provider Experience
 
 <p align="center">
   <img src="docs/screenshots/10-admin-home.png" width="260" />
-  <img src="docs/screenshots/05-provider-campaigns.png" width="260" />
-  <img src="docs/screenshots/07-provider-meals.png" width="260" />
-</p>
-
-### Campaigns and Meals
-
-<p align="center"> 
-  <img src="docs/screenshots/08-add-meal.png" width="260" />
 </p>
 
 ### Admin Dashboard
 
 <p align="center">
   <img src="docs/screenshots/11-admin-manage-accounts.png" width="260" />
-  <img src="docs/screenshots/12-admin-monitor-orders.png" width="260" />
-</p>
-
-### Notifications
-
-<p align="center">
-  <img src="docs/screenshots/13-admin-notifications.png" width="260" />
 </p>
 
 
