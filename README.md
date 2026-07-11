@@ -71,7 +71,6 @@ NUSUQ addresses these challenges through three connected user roles:
 
 - Flutter
 - Dart
-- HTTP package
 
 ### Backend
 
